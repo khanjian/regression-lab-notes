@@ -1,0 +1,35 @@
+---
+title: "PSTAT 126"
+subtitle: "Lab 3"
+author: "Roupen Khanjian"
+date: "Spring 2021"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\newpage
+##### coefficient of determination
+
+$$R^2 = 1 - \frac{RSS}{S_{yy}}$$
+```{r}
+r_2 <- 1 - (sum(e^2)/Syy)
+r_2
+
+summary(model)$r.squared
+
+r <- cor(x,y)
+r^2
+```
+
+Notes on $R^2$
+
+* Always between 0 and 1
+* Can interpret as $R^2 \times 100$ percent of the variation in Y is explained by the variation in the predictor x. 
