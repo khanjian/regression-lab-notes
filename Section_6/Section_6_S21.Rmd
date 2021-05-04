@@ -1,0 +1,223 @@
+---
+title: "PSTAT 126"
+subtitle: "Lab 6"
+author: "Roupen Khanjian"
+date: "Spring 2021"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+
+```{r}
+library(faraway) # Functions and Datasets for Books by Julian Faraway 
+library(alr4) # Data to Accompany Applied Linear Regression 4th Edition
+library(tidyverse) # Easily Install and Load the 'Tidyverse'
+library(Lahman) # Sean 'Lahman' Baseball Database 
+```
+
+\tableofcontents
+
+
+## Transformations 
+
+* See Chapter 7 of Faraway book
+
+##### Can we predict At bats from GIDP (Grounded into double plays)?
+
+&nbsp;
+&nbsp;
+
+```{r }
+df3 <- Batting %>% 
+  filter(yearID == "2017" & # stats from 2017
+           lgID == "NL" & # only from the NL
+           G > 70 & # Only players who have played more than 70 games
+           SB != 0) # Only players that have at least stolen 1 base. 
+
+dim(df3)
+
+model_3 <- lm(AB ~ GIDP, 
+          data = df3)
+
+summary(model_3)
+
+ggplot(data = df3) +
+  geom_point(aes(x = GIDP, y = AB), color = "royalblue3", 
+             alpha = 0.9, size = 2.4) +
+  geom_abline(aes(intercept = coef(model_3)[1],
+                  slope = coef(model_3)[2]), 
+                  color = "red",
+                  size = 1) +
+  labs(x = "GIDP",
+       y = "At Bats",
+       title = "Plot with fitted values") +
+  theme_minimal()
+```
+
+\newpage
+
+```{r }
+par(mfrow = c(1,2))
+plot(model_3, which = 1 , add.smooth = F) 
+plot(model_3, which = 2) 
+
+```
+
+* Possible skewness of residuals and heteroscedasticity
+
+\newpage
+
+```{r }
+par(mfrow = c(1,1))
+invTranPlot(AB ~ GIDP, data = df3, 
+            lambda = c(-1, 0, 1), optimal = FALSE)
+```
+
+Would chose to log transform predictor variable according to above plot. Remember to conduct diagnostic checks again after transforming either the response or predictor(s) variable.
+
+\newpage
+
+```{r }
+bc <- boxCox(lm(AB ~ log(GIDP), 
+          data = df3))
+
+bc$x[which.max(bc$y)]
+
+```
+Since $\lambda =$ `r  bc$x[which.max(bc$y)]` is very close to 1, and 1 is in the 95% confidence interval, we choose to not transform the response variable. 
+
+
+\newpage
+
+## Another Box-Cox Transformation example
+
+```{r}
+set.seed(71)
+y <- sort(rexp(25, rate = 2)) # Response
+x <- seq(0,2,length.out = 25) # Predictor
+
+model_bc <- lm(y ~ x)
+summary(model_bc)
+```
+
+\newpage
+
+```{r}
+plot(x,y)
+par(mfrow = c(1,2))
+plot(model_bc, which = 1 , add.smooth = F) 
+plot(model_bc, which = 2)
+```
+
+\newpage
+
+```{r}
+bc <- boxCox(model_bc)
+bc$x[which.max(bc$y)]
+
+bc <- boxCox(model_bc, lambda = seq(0,1,by = 0.2))
+
+```
+
+* Would probably choose a square root transformation on the response variable since 0.5 is within the 95% confidence interval. 
+
+\newpage
+
+## Adding polynomial terms to our model with the I() function
+
+* Chapter 9.4 in Faraway (page 139)
+
+#### Simulated data
+
+```{r}
+par(mfrow = c(1,1))
+n <- 100
+x <-  seq(1, 5, length = n)
+y <-  5 + 12 * x - 3 * x ^ 2 + 
+  rnorm(n, mean = 0, sd = sqrt(2))
+
+fit <-  lm(y ~ x)
+summary(fit)
+yhat <-  fitted(fit)
+
+plot(x, y, main = 'Linear Fit')
+lines(x, yhat, col = 2)
+
+fit_2 <-  lm(y ~ x + I(x ^ 2))
+summary(fit_2)
+yhat_2 <-  fitted(fit_2)
+
+plot(x, y, main = 'Quadratic Fit')
+lines(x, yhat_2, col = 2)
+
+
+```
+
+\newpage
+
+#### Data from faraway book. 
+
+&nbsp;
+&nbsp;
+
+```{r}
+head(savings, 4)
+```
+
+* sr = savings rate - personal saving divided by disposable income. 
+* ddpi = percent growth rate of per-capita disposable income in dollars.
+
+```{r}
+summary(lm(sr ~ ddpi,savings))
+summary(lm(sr ~ ddpi+I(ddpi^2),savings))
+summary(lm(sr ~ ddpi+I(ddpi^2)+I(ddpi^3),savings))
+
+```
+
+* Even if lower order terms are not statistically significant, want to keep them in the model. 
+
+\newpage
+#### p-values revisited 
+
+```{r}
+
+lmod <- lm(Species ~ Area + Elevation + Nearest + Scruz + Adjacent, data = gala)
+summary(lmod)
+
+```
+
+
+## Partial F-tests with Polynomial Regression
+
+
+```{r}
+model_1 <- lm(sr ~ ddpi,savings)
+
+par(mfrow = c(1,2))
+plot(savings$ddpi, savings$sr)
+plot(model_1, which = 1, add.smooth = F)
+
+model_2 <- lm(sr ~ ddpi+I(ddpi^2),savings)
+
+anova(model_1, model_2)
+summary(model_2)
+par(mfrow = c(1,1))
+plot(model_2, which = 1, add.smooth = F)
+
+model_3 <- lm(sr ~ ddpi+I(ddpi^2)+I(ddpi^3), savings)
+summary(model_3)
+
+anova(model_1, model_3)
+anova(model_2, model_3)
+
+```
+
+
