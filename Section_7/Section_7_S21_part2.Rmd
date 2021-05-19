@@ -1,0 +1,185 @@
+---
+title: "PSTAT 126"
+subtitle: "Lab 7 Part 2"
+author: "Roupen Khanjian"
+date: "Spring 2021"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+
+```{r}
+library(faraway) # Functions and Datasets for Books by Julian Faraway 
+library(alr4) # Data to Accompany Applied Linear Regression 4th Edition
+library(tidyverse) # Easily Install and Load the 'Tidyverse'
+library(lmtest) # Testing Linear Regression Models
+```
+
+\tableofcontents
+
+
+* Note on Homework. Make sure you are knitting as you go along. Don't wait until you do all your analysis and then knit. 
+
+\newpage
+
+## ANOVA using the `aov` function
+
+```{r}
+data("chickwts")
+glimpse(chickwts)
+table(chickwts$feed)
+
+ggplot(data = chickwts, 
+       aes(x = feed, y = weight)) +
+  geom_boxplot(aes(fill = feed),
+               show.legend = FALSE) +
+  theme_minimal() +
+  theme(axis.text = element_text(face = "bold",
+                                 size = 10))
+```
+
+\newpage
+
+```{r}
+chick_wt_aov <- aov(weight ~ feed, data = chickwts)
+chick_wt_aov
+summary(chick_wt_aov)
+
+anova(lm(weight ~ feed, data = chickwts))
+
+```
+
+\newpage
+
+## Data example
+
+```{r}
+data("starwars")
+head(starwars)
+
+starwars_subset <- starwars %>% # subset data
+  select(height, mass) %>% # select mass as response and height as predictor
+  drop_na() %>% # remove missing values
+  filter(mass < 500) # filter for mass under 500 kg
+
+ggplot(data = starwars_subset,
+       aes(x = height, y = mass)) +
+  geom_point(color = "forestgreen",
+             alpha = 0.85, size = 2) +
+  theme_minimal()
+
+model_sw <- lm(mass ~ height, starwars_subset)
+summary(model_sw)
+
+ggplot(data = starwars_subset,
+       aes(x = height, y = mass)) +
+  geom_point(color = "forestgreen",
+             alpha = 0.85, size = 2) +
+  geom_abline(aes(intercept = coef(model_sw)[1],
+                  slope = coef(model_sw)[2]),
+              color = "firebrick", size = 1.25) +
+  theme_minimal()
+```
+
+* check model assumptions graphically and using formal tests. 
+
+```{r}
+plot(model_sw, which = 1, add.smooth = F)
+plot(model_sw, which = 2)
+
+bptest(model_sw)
+shapiro.test(resid(model_sw))
+shapiro.test(residuals(model_sw))
+```
+
+* assumptions are violated 
+
+
+* try response transformation
+
+```{r}
+bc <- boxCox(model_sw)
+bc$x[which.max(bc$y)]
+```
+
+lets try to log transform response
+
+```{r}
+model_sw2 <- lm(log(mass) ~ height, data = starwars_subset)
+summary(model_sw2)
+ggplot(data = starwars_subset,
+       aes(x = height, y = log(mass))) +
+  geom_point(color = "forestgreen",
+             alpha = 0.85, size = 2) +
+  geom_abline(aes(intercept = coef(model_sw2)[1],
+                  slope = coef(model_sw2)[2]),
+              color = "firebrick", size = 1.25) +
+  theme_minimal()
+```
+
+```{r}
+plot(model_sw2, which = 1, add.smooth = F)
+plot(model_sw2, which = 2)
+
+bptest(model_sw2)
+shapiro.test(resid(model_sw2))
+```
+
+
+* Should we add a polynomial term maybe? Let's see!
+
+```{r}
+model_sw3 <- lm(log(mass) ~ height + I(height^2), data = starwars_subset)
+summary(model_sw3)
+```
+
+```{r}
+anova(model_sw2, model_sw3)
+```
+
+* should we transform the predictor variable?
+
+```{r}
+invTranPlot(log(mass) ~ height, data = starwars_subset,
+            lambda = c(0, 1), optimal = TRUE)
+```
+
+* From the plot above can try a log transformation of predictor variable. 
+
+```{r}
+model_sw4 <- lm(log(mass) ~ log(height), data = starwars_subset)
+summary(model_sw4)
+
+```
+
+```{r}
+plot(model_sw4, which = 1, add.smooth = F)
+plot(model_sw4, which = 2)
+
+bptest(model_sw4)
+shapiro.test(resid(model_sw4))
+```
+
+* Normality assumption is violated. 
+
+**Therefore, the most appropriate model for this data would be model 2** 
+
+```{r}
+summary(model_sw2)
+```
+
+
+
+
+
+
+
+
