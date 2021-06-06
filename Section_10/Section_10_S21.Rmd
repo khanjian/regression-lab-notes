@@ -1,0 +1,248 @@
+---
+title: "PSTAT 126"
+subtitle: "Lab 10"
+author: "Roupen Khanjian"
+date: "Spring 2021"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+
+
+```{r}
+library(faraway) # Functions and Datasets for Books by Julian Faraway 
+library(alr4) # Data to Accompany Applied Linear Regression 4th Edition
+library(tidyverse) # Easily Install and Load the 'Tidyverse'
+library(patchwork) # The Composer of Plots
+library(GGally) # Extension to 'ggplot2'
+library(janitor) # Simple Tools for Examining and Cleaning Dirty Data
+library(palmerpenguins) # Palmer Archipelago (Antarctica) Penguin Data
+library(broom) # Convert Statistical Objects into Tidy Tibbles
+library(lmtest) # Testing Linear Regression Models
+library(ballr) # Access to Current and Historical Basketball Data
+```
+
+\tableofcontents
+\newpage
+
+## Review of Linear Regression Assumptions
+
+#### Linear Regression Model Assumptions
+&nbsp;
+
+1) The relationship between each $Y_n$ and each $x_n$, respectively, is linear.  **L**inearity 
+2) Errors have **E**qual variance. Var($Y_n$) =  $\sigma^2$ for every $n$ (homoscedasticity)
+3) Errors are **N**ormally distributed 
+4) Errors are **I**ndependent 
+
+* Can use the acronym **L.I.N.E.** to help you remember. 
+
+### Model 1: Not Satisfying Assumptions
+
+```{r}
+nba_data1 <- NBAPerGameStatistics(season = 2021)
+
+nba_data <- distinct(nba_data1, player, .keep_all = TRUE)  %>% 
+  filter(pts > 2) %>% 
+  filter(g > 10) %>% 
+  filter(pos %in% c("PG", "SG")) %>% 
+  mutate(pos = factor(pos))
+```
+
+&nbsp;
+```{r}
+ggplot(data = nba_data,
+       aes(x = pts)) +
+  geom_histogram(fill = "dodgerblue", color = "white",
+                 bins = 15) +
+  geom_rug(color = "firebrick", alpha = 0.7) +
+  labs(title = "Histogram of Response Variable") +
+  theme_bw()
+```
+&nbsp;
+
+```{r}
+model_nba1 <- lm(pts ~ pos + tov + trb, data = nba_data)
+summary(model_nba1)
+
+par(mfrow = c(1,2))
+plot(model_nba1, which = 1, add.smooth = F) # resid vs fit
+plot(model_nba1, which = 2) # qqplot
+shapiro.test(resid(model_nba1))  # resid vs fit
+bptest(model_nba1) # test for homoscedasticity
+dwtest(model_nba1) # test for autocorrelation
+gqtest(model_nba1) # test for homoscedasticity
+```
+
+\newpage
+
+### Model 2: Satisfying Assumptions
+
+```{r}
+nba_data <- distinct(nba_data1, player, .keep_all = TRUE)  %>% 
+  filter(pts > 8) %>% 
+  filter(g > 20) %>% 
+  filter(pos %in% c("PF", "C")) %>% 
+  mutate(pos = factor(pos))
+```
+
+&nbsp;
+```{r}
+par(mfrow = c(1,1))
+ggplot(data = nba_data,
+       aes(x = mp)) +
+  geom_histogram(fill = "dodgerblue", color = "white",
+                 bins = 15) +
+  geom_rug(color = "firebrick", alpha = 0.7) +
+  labs(title = "Histogram of Response Variable") +
+  theme_bw()
+```
+
+&nbsp;
+
+```{r}
+model_nba2 <- lm(mp ~ stl + tov, data = nba_data)
+summary(model_nba2)
+
+par(mfrow = c(1,2))
+plot(model_nba2, which = 1, add.smooth = F) # resid vs fit
+plot(model_nba2, which = 2) # qqplot
+shapiro.test(resid(model_nba2)) # resid vs fit
+bptest(model_nba2) # test for homoscedasticity
+dwtest(model_nba2) # test for autocorrelation
+gqtest(model_nba2) # test for homoscedasticity
+```
+
+\newpage
+
+## Generalized Linear Models: Logistic Regression
+
+* Last week we used species from the penguins dataset as a categorical predictor variable. Today let's use it as our response variable in a logistic regression example. 
+
+#### Data
+&nbsp;
+
+```{r}
+
+penguins_noNA_no_Gentoo <- penguins %>% 
+  drop_na() %>% 
+  filter(species != "Gentoo" )%>% 
+  mutate(species = fct_drop(species))
+
+slice_sample(penguins_noNA_no_Gentoo, n = 5)
+
+levels(penguins_noNA_no_Gentoo$species)
+
+```
+
+#### EDA
+&nbsp;
+
+```{r}
+mycolors <- c("salmon1", "seagreen3")
+
+par(mfrow = c(1,1))
+ggplot(data = penguins_noNA_no_Gentoo, 
+       aes(x = body_mass_g, y = flipper_length_mm)) +
+  geom_point(aes(color = sex), size = 2) +
+  scale_color_manual(values = mycolors) +
+  facet_wrap(~ species) +  
+  labs(x = "Body Mass (g)",
+       y = "Flipper length (mm)",
+       color = "Sex") +
+  theme_bw()
+```
+
+
+#### Logistic Regression Model
+&nbsp;
+
+```{r}
+model_species <- glm(species ~ body_mass_g + flipper_length_mm + sex, 
+                     data = penguins_noNA_no_Gentoo, 
+                     family = "binomial")
+
+summary(model_species)
+
+tidy(model_species)
+
+coef(model_species)
+
+```
+
+#### Likelihood Ratio Test
+&nbsp;
+
+```{r}
+
+model_species_smaller <- glm(species ~ flipper_length_mm + body_mass_g, 
+                     data = penguins_noNA_no_Gentoo, 
+                     family = "binomial")
+
+model_species_larger <- glm(species ~ body_mass_g + flipper_length_mm + sex + bill_depth_mm, 
+                     data = penguins_noNA_no_Gentoo, 
+                     family = "binomial")
+
+anova(model_species_smaller,
+      model_species_larger,
+      test = "LRT")
+```
+
+\newpage
+
+#### Prediction
+&nbsp;
+
+What's the probabilty that a male penguin weighing 4150 grams with a flipper length of 205 mm is a Chinstrap?
+
+&nbsp;
+
+```{r}
+new_data <- data.frame(
+  body_mass_g = 4150,
+  flipper_length_mm = 205,
+  sex = "male")
+
+predict(model_species, newdata = new_data, se.fit = TRUE,
+        type = "response")$fit
+```
+
+What's the probability that a female penguin weighing 4950 grams with a flipper length of 190 mm is a Chinstrap?
+
+&nbsp;
+
+```{r}
+new_data2 <- data.frame(
+  body_mass_g = 4950,
+  flipper_length_mm = 190,
+  sex = "female")
+
+predict(model_species, newdata = new_data2, se.fit = TRUE,
+        type = "response")$fit
+
+```
+
+```{r}
+
+model_fitted <- augment(model_species, type.predict = "response")
+
+slice_sample(model_fitted, n = 5)[1:5]
+
+ggplot(data = model_fitted, aes(x = flipper_length_mm, y = .fitted)) +
+  geom_point(aes(color = species)) +
+  labs(x = "Flipper length (mm)",
+       y = "Probability of Chinstrap") +
+  theme_minimal()
+
+```
+
+

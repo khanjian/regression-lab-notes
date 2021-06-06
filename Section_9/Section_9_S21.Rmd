@@ -1,0 +1,237 @@
+---
+title: "PSTAT 126"
+subtitle: "Lab 9"
+author: "Roupen Khanjian"
+date: "Spring 2021"
+output:
+  html_document: default
+  word_document: default
+  pdf_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+
+
+```{r}
+library(faraway) # Functions and Datasets for Books by Julian Faraway 
+library(alr4) # Data to Accompany Applied Linear Regression 4th Edition
+library(tidyverse) # Easily Install and Load the 'Tidyverse'
+library(patchwork) # The Composer of Plots
+library(GGally) # Extension to 'ggplot2'
+library(janitor) # Simple Tools for Examining and Cleaning Dirty Data
+library(palmerpenguins) # Palmer Archipelago (Antarctica) Penguin Data
+library(broom) # Convert Statistical Objects into Tidy Tibbles
+```
+
+\tableofcontents
+
+## Categorical Variables
+
+- `worldcup` Dataset: Player data from the 2010 world cup. 
+
+`position` = a factor with levels: (Defender, Forward, Goalkeeper, Midfielder).  
+`time` = Time played in minutes.  
+`shots` = Number of shots attempted.  
+`passes` = Number of passes made.  
+`tackles` = Number of tackles made.  
+
+```{r}
+data("worldcup") # from faraway package
+
+glimpse(worldcup)
+
+# Some data cleaning
+worldcup1 <- worldcup %>%
+  select(-c(Saves, Team)) %>% 
+  filter(Passes > 1 ) %>% # players that have made over 1 pass
+  filter(Time > 90) %>% 
+  filter(Position != "Goalkeeper") %>% # remove the goalies from model
+  filter(Tackles > 0) %>% # players that have at least 1 tackle
+  filter(Shots > 0) %>% # players that have at least 1 shot attempted
+  clean_names() # convert the columns names to lower case. 
+  
+ggpairs(worldcup1,
+        mapping = aes(color = position),
+        columns = c("time", 
+                    "shots",
+                    "passes",
+                    "tackles")) +
+  theme_bw()
+
+```
+
+Want to predict how many passes a player made given the other variables in our dataset. Thus, response variable will be `Passes`. 
+
+```{r}
+model <- lm(passes ~ ., data = worldcup1)
+summary(model)
+```
+
+What is the default or baseline group here for the Position variable?
+
+```{r}
+d1 <- coef(model)[1] # defender
+m1 <- coef(model)[1] + coef(model)[3] # midfielder
+f1 <- coef(model)[1] + coef(model)[2] # forward
+```
+
+Lets say we want *Forward* to be the default or baseline group for the Position variable. 
+
+```{r}
+worldcup1$defender = ifelse(as.character(worldcup1$position) == 'Defender', 1, 0) 
+worldcup1$midfielder = ifelse(as.character(worldcup1$position) == 'Midfielder', 1, 0)
+
+model1 <- lm(passes ~ defender + midfielder + time + shots + tackles
+             ,data = worldcup1)
+summary(model1)
+```
+
+
+```{r}
+# tidy and glance from broom package
+model_tidy <- tidy(model)
+model1_tidy <- tidy(model1)
+model_tidy; model1_tidy
+glance(model)[c(1:5,8:9)]; glance(model1)[c(1:5,8:9)]
+
+d2 <- coef(model1)[1] + coef(model1)[2] # defender
+m2 <- coef(model1)[1] + coef(model1)[3] # midfielder
+f2 <- coef(model1)[1] # forward
+as.numeric(d1); as.numeric(d2) # defender
+as.numeric(m1); as.numeric(m2) # midfielder
+as.numeric(f1); as.numeric(f2) # forward
+
+```
+
+R chooses a default group for you. 
+
+\newpage
+
+
+#### Another example ...
+
+&nbsp;
+
+![Dragons! How would we predict the weight of a dragon by a continuous variable (height) and a categorical variable (spotted or stripped)? ](1dragons.png)
+
+![Interpretation of categorical predictor variable](dragon_regression.png)
+
+\newpage
+
+![Review of categorical variables](nominal_ordinal_binary.png)
+
+![Interpretation of continuous predictor variable](dragons_continuous.png)
+
+\newpage
+
+![Making predictions based off continuous and categorical predictors](dragon_predict_mlr.png)
+
+![What about residuls in MLR?](dragon_residual.png)
+
+\newpage
+
+![Make sure residulas are normally distributed!](dragon_residual_distribution.png)
+
+* All above artwork by UCSB Bren professor Allison Horst.  
+  * <https://www.twitter.com/allison_horst>
+  * <https://github.com/allisonhorst/stats-illustrations>
+
+\newpage
+
+## Interaction between quantitative and qualitative predictor variables
+
+#### Example of a Parallel model
+&nbsp;
+
+```{r}
+penguins_noNA_no_Gentoo <- penguins %>% 
+  drop_na() %>% 
+  filter(species != "Gentoo")
+
+model_penguins <- lm(bill_depth_mm ~ species*bill_length_mm,
+                     data = penguins_noNA_no_Gentoo)
+summary(model_penguins)
+
+p1 <- ggplot(data = penguins_noNA_no_Gentoo,
+       aes(x = bill_length_mm,
+           y = bill_depth_mm,
+           colour = species)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", se = F)+
+  scale_color_manual(values = c("salmon", "dodgerblue")) +
+  theme_bw()
+
+p2 <- ggplot(data = penguins_noNA_no_Gentoo,
+       aes(x = bill_length_mm,
+           y = bill_depth_mm,
+           colour = species)) +
+  geom_point(size = 2) +
+  geom_abline(aes(intercept = coef(model_penguins)[1], 
+                  slope = coef(model_penguins)[3]), 
+              col = "salmon", size = 1.3) +
+  geom_abline(aes(intercept = coef(model_penguins)[1] +  coef(model_penguins)[2], 
+                  slope = coef(model_penguins)[3] +  coef(model_penguins)[4]), 
+              col = "dodgerblue", size = 1.3) +
+  scale_color_manual(values = c("salmon", "dodgerblue")) +
+  theme_bw() +
+  theme(legend.position = "none")
+
+p1 + p2
+
+model_penguins2 <- lm(bill_depth_mm ~ species + bill_length_mm,
+                     data = penguins_noNA_no_Gentoo)
+summary(model_penguins2)
+
+```
+
+\newpage
+
+#### Example of a Non-parallel model
+
+&nbsp;
+
+```{r}
+data("mtcars")
+
+mtcars1 <- mtcars %>% 
+  mutate(cyl = factor(cyl)) %>% 
+  select(c(mpg, disp, cyl))
+
+model_1 <- lm(mpg ~ disp*cyl, data = mtcars1)
+# alternative way to incorporate an interaction term into a model
+# model_1 <- lm(mpg ~ disp + cyl + disp:cyl, data = mtcars1) 
+summary(model_1)
+```
+
+\newpage
+```{r}
+m1 <- ggplot(data = mtcars1, aes(x = disp, y = mpg, colour = cyl)) +
+  geom_point(size = 2.5) +
+  geom_smooth(method = "lm", se = F) +
+  theme_bw()
+
+m2 <- ggplot(data = mtcars1, aes(x = disp, y = mpg, colour = cyl)) +
+  geom_point(size = 2.5) +
+  geom_abline(aes(intercept = coef(model_1)[1], 
+                  slope = coef(model_1)[2]), col = "salmon", size = 1.3) +
+  geom_abline(aes(intercept = coef(model_1)[1] +  coef(model_1)[3], 
+                  slope = coef(model_1)[2] +  coef(model_1)[5]), col = "seagreen", size = 1.3) +
+  geom_abline(aes(intercept = coef(model_1)[1] +  coef(model_1)[4], 
+                  slope = coef(model_1)[2] +  coef(model_1)[6]), col = "dodgerblue", size = 1.3) +
+  theme_bw() +
+  theme(legend.position = "none")
+
+m1 + m2
+
+```
+
+
+
+
+
